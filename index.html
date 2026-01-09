@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>📝 PomodoList – Ultimate To-Do + Pomodoro</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+* {box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:'Poppins',sans-serif;
+  background:linear-gradient(135deg,#89f7fe,#66a6ff);
+  display:flex;justify-content:center;padding:50px 0;min-height:100vh;
+  transition:background 0.5s,color 0.5s;
+}
+body.dark{background:#1f1f1f;color:#eee;}
+.app{
+  background:rgba(255,255,255,0.95);padding:25px 30px;border-radius:20px;
+  width:450px;max-width:95%;box-shadow:0 15px 40px rgba(0,0,0,0.2);position:relative;
+  transition:background 0.5s,color 0.5s;
+}
+body.dark .app{background:#2b2b2b;color:#eee;}
+h2{text-align:center;margin-bottom:10px;}
+.author{position:absolute;bottom:10px;right:15px;font-size:10px;color:#555;}
+body.dark .author{color:#aaa;}
+.input-group{display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap;}
+.input-group input[type="text"],.input-group input[type="time"],.input-group select,.input-group input[type="number"]{
+  flex:1;padding:10px;border-radius:10px;border:1px solid #ccc;outline:none;
+}
+body.dark .input-group input,body.dark .input-group select{border:1px solid #555;background:#444;color:#eee;}
+.input-group button{
+  padding:10px 15px;border:none;border-radius:10px;background:#667eea;color:white;cursor:pointer;font-weight:600;
+}
+.input-group button:hover{background:#5a67d8;}
+ul{list-style:none;margin-top:15px;max-height:300px;overflow-y:auto;}
+li{background:#f3f3f3;padding:12px 15px;margin-bottom:10px;border-radius:12px;
+  display:flex;justify-content:space-between;align-items:center;transition:all 0.3s;}
+body.dark li{background:#3b3b3b;}
+li.done{text-decoration:line-through;color:gray;opacity:0.7;}
+li.active{border:2px solid #48c774;}
+.task-info{display:flex;flex-direction:column;}
+.task-name{font-weight:500;font-size:16px;}
+.task-time,.task-priority{font-size:12px;color:#555;}
+body.dark .task-time,body.dark .task-priority{color:#ccc;}
+.buttons span{margin-left:8px;cursor:pointer;padding:5px 8px;border-radius:8px;color:white;font-weight:bold;}
+.delete{background:#ff5c5c;}
+.done-btn{background:#48c774;}
+.pomodoro-panel{margin-top:20px;background:#667eea;color:white;padding:15px;border-radius:15px;font-size:18px;font-weight:bold;text-align:center;transition:background 0.5s;}
+body.dark .pomodoro-panel{background:#5555aa;}
+.pomodoro-panel input{width:50px;padding:5px;border-radius:8px;border:none;text-align:center;}
+.pomodoro-panel button{margin-left:5px;padding:6px 12px;border:none;border-radius:8px;background:#48c774;color:white;cursor:pointer;}
+.pomodoro-panel button:hover{background:#3ea766;}
+.toggle-dark{position:absolute;top:10px;left:15px;padding:6px 12px;border-radius:8px;cursor:pointer;background:#eee;font-size:12px;}
+body.dark .toggle-dark{background:#444;color:#eee;}
+.progress-container{height:8px;width:100%;background:#ccc;border-radius:5px;margin-top:10px;}
+.progress-bar{height:8px;width:0%;background:#48c774;border-radius:5px;transition:width 0.3s;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <button class="toggle-dark" onclick="toggleDarkMode()">Dark/Light</button>
+  <h2>📝 PomodoList</h2>
+
+  <div class="input-group">
+    <input id="taskInput" type="text" placeholder="New task">
+    <input id="timeInput" type="time">
+    <select id="priorityInput">
+      <option value="">Priority</option>
+      <option value="Low">Low</option>
+      <option value="Medium">Medium</option>
+      <option value="High">High</option>
+    </select>
+    <button onclick="addTask()">Add</button>
+  </div>
+
+  <ul id="taskList"></ul>
+
+  <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+
+  <div class="pomodoro-panel">
+    <div>Pomodoro Timer: <span id="timerDisplay">25:00</span></div>
+    <div style="margin-top:5px;">
+      Work: <input type="number" id="workInput" value="25" min="1"> min
+      Break: <input type="number" id="breakInput" value="5" min="1"> min
+      <button onclick="startPomodoro()">Start</button>
+      <button onclick="stopPomodoro()">Stop</button>
+    </div>
+  </div>
+
+  <div class="author">Md. Misbahul Hasan Mahin</div>
+</div>
+
+<audio id="alertSound" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
+
+<script>
+// Dark mode
+function toggleDarkMode(){document.body.classList.toggle('dark');}
+
+// Tasks
+let taskListEl=document.getElementById('taskList');
+function saveTasks(){let tasks=[];document.querySelectorAll('#taskList li').forEach(li=>{
+  tasks.push({name:li.querySelector('.task-name').innerText,
+              time:li.querySelector('.task-time').innerText,
+              priority:li.querySelector('.task-priority').innerText,
+              done:li.classList.contains('done')});
+});localStorage.setItem('tasks',JSON.stringify(tasks));updateProgress();}
+function loadTasks(){let tasks=JSON.parse(localStorage.getItem('tasks')||'[]');tasks.forEach(t=>{addTaskElement(t.name,t.time,t.priority,t.done);});updateProgress();}
+function addTask(){const taskInput=document.getElementById('taskInput');const timeInput=document.getElementById('timeInput');
+const priorityInput=document.getElementById('priorityInput');const name=taskInput.value.trim();const time=timeInput.value;const priority=priorityInput.value;
+if(!name) return; addTaskElement(name,time,priority); taskInput.value=''; timeInput.value=''; priorityInput.value=''; saveTasks();}
+function addTaskElement(name,time,priority,done=false){
+  const li=document.createElement('li'); if(done) li.classList.add('done');
+  li.innerHTML=`<div class="task-info"><span class="task-name">${name}</span>
+  <span class="task-time">${time}</span><span class="task-priority">${priority}</span></div>
+  <div class="buttons"><span class="done-btn" onclick="toggleDone(this)">✔</span>
+  <span class="delete" onclick="deleteTask(this)">✖</span></div>`;
+  taskListEl.appendChild(li);
+}
+function toggleDone(el){el.parentElement.parentElement.classList.toggle('done');saveTasks();}
+function deleteTask(el){el.parentElement.parentElement.remove();saveTasks();}
+function updateProgress(){
+  const total=document.querySelectorAll('#taskList li').length;
+  const done=document.querySelectorAll('#taskList li.done').length;
+  const percent=total?Math.round((done/total)*100):0;
+  document.getElementById('progressBar').style.width=percent+'%';
+}
+loadTasks();
+
+// Pomodoro Timer
+let timerEl=document.getElementById('timerDisplay'); let totalSeconds,interval,workSeconds,breakSeconds,isWork=true;
+let alertSound=document.getElementById('alertSound');
+function updateTimerDisplay(){let m=Math.floor(totalSeconds/60);let s=totalSeconds%60; timerEl.textContent=`${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;}
+function highlightTask(){document.querySelectorAll('#taskList li').forEach(li=>li.classList.remove('active'));
+  let firstPending=document.querySelector('#taskList li:not(.done)');if(firstPending) firstPending.classList.add('active');}
+function notifyUser(msg){alertSound.play();if(Notification.permission==="granted"){new Notification(msg);}else if(Notification.permission!=="denied"){Notification.requestPermission().then(p=>{if(p==="granted") new Notification(msg);});}}
+function startPomodoro(){clearInterval(interval); isWork=true; workSeconds=parseInt(document.getElementById('workInput').value)*60||1500;
+  breakSeconds=parseInt(document.getElementById('breakInput').value)*60||300; totalSeconds=workSeconds; updateTimerDisplay(); highlightTask();
+  interval=setInterval(()=>{totalSeconds--; updateTimerDisplay();
+  if(totalSeconds<=0){if(isWork){notifyUser("⏰ Work finished! Take a break!"); totalSeconds=breakSeconds; isWork=false;}else{notifyUser("☕ Break finished! Back to work!"); totalSeconds=workSeconds; isWork=true; highlightTask();}}},1000);}
+function stopPomodoro(){clearInterval(interval);}
+</script>
+</body>
+</html>
